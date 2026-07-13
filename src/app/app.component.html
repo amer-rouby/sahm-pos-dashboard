@@ -1,0 +1,16 @@
+﻿<main class="shell" [attr.dir]="ui.dir()" [attr.lang]="ui.language()" [attr.data-theme]="ui.theme()">
+  <app-header-controls />
+  <app-metrics-summary />
+
+  <section class="workspace">
+    <app-orders-workspace />
+
+    <section class="main-panel">
+      <app-kitchen-monitor />
+      <app-ai-assistant-panel />
+      <app-product-search-panel />
+    </section>
+  </section>
+
+  <app-offline-queue-banner />
+</main>
