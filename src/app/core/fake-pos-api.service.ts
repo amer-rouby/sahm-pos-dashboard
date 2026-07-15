@@ -1,65 +1,60 @@
+﻿import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, concat, delay, interval, map, of, scan, shareReplay, switchMap, take, throwError, timer } from 'rxjs';
-import { initialOrders } from './mock-data';
-import { AssistantInsight, KitchenSnapshot, Order } from './models';
+import { BehaviorSubject, Observable, catchError, concat, delay, interval, map, of, shareReplay, switchMap, take, tap, throwError, timer } from 'rxjs';
+import { initialOrders, products } from './mock-data';
+import { AssistantInsight, KitchenSnapshot, Order, Product } from './models';
 import { nextStatus } from './order-utils';
 
 @Injectable({ providedIn: 'root' })
 export class FakePosApiService {
-  private readonly ordersSubject = new BehaviorSubject<Order[]>(initialOrders);
-  readonly orders$ = this.ordersSubject.asObservable();
+  private readonly baseUrl = 'http://127.0.0.1:8080/api';
 
-  readonly kitchen$ = interval(4500).pipe(
-    scan((index) => index + 1, 0),
-    map((index) => this.createKitchenSnapshot(index)),
+  constructor(private readonly http: HttpClient) {}
+  private readonly ordersSubject = new BehaviorSubject<Order[]>(initialOrders);
+
+  readonly orders$ = timer(0, 5000).pipe(
+    switchMap(() => this.http.get<Order[]>(`${this.baseUrl}/orders`).pipe(catchError(() => of(this.ordersSubject.value)))),
+    tap((orders) => this.ordersSubject.next(orders)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly products$ = timer(0, 15000).pipe(
+    switchMap(() => this.http.get<Product[]>(`${this.baseUrl}/products`).pipe(catchError(() => of(products)))),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly kitchen$ = timer(0, 4500).pipe(
+    switchMap(() => this.http.get<KitchenSnapshot>(`${this.baseUrl}/kitchen`).pipe(catchError(() => of(this.createKitchenSnapshot())))),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly liveOrderPatch$ = timer(2500, 5200).pipe(
-    map((tick) => ({ orderId: initialOrders[tick % initialOrders.length].id }))
+    map((tick) => ({ orderId: this.ordersSubject.value[tick % this.ordersSubject.value.length]?.id ?? 'ORD-1042' }))
   );
 
   advanceOrder(orderId: string): Observable<Order> {
-    const orders = this.ordersSubject.value;
-    const order = orders.find((candidate) => candidate.id === orderId);
-    if (!order) {
-      return throwError(() => new Error('Order was not found'));
-    }
-
-    const updated = { ...order, status: nextStatus(order.status), etaMinutes: Math.max(order.etaMinutes - 4, 0) };
-    this.ordersSubject.next(orders.map((candidate) => candidate.id === orderId ? updated : candidate));
-    return of(updated).pipe(delay(300));
+    return this.http.post<Order>(`${this.baseUrl}/orders/${orderId}/advance`, {}).pipe(
+      tap((updated) => this.ordersSubject.next(this.ordersSubject.value.map((order) => order.id === orderId ? updated : order))),
+      catchError(() => this.advanceOrderLocally(orderId))
+    );
   }
 
   markPriority(orderId: string, priority: Order['priority']): Observable<Order> {
-    const orders = this.ordersSubject.value;
-    const order = orders.find((candidate) => candidate.id === orderId);
-    if (!order) {
-      return throwError(() => new Error('Order was not found'));
-    }
-
-    const updated = { ...order, priority };
-    this.ordersSubject.next(orders.map((candidate) => candidate.id === orderId ? updated : candidate));
-    return of(updated).pipe(delay(220));
+    return this.http.post<Order>(`${this.baseUrl}/orders/${orderId}/priority`, { priority }).pipe(
+      tap((updated) => this.ordersSubject.next(this.ordersSubject.value.map((order) => order.id === orderId ? updated : order))),
+      catchError(() => this.markPriorityLocally(orderId, priority))
+    );
   }
 
   streamAssistant(order: Order, attempt: number): Observable<AssistantInsight> {
-    const shouldFail = order.id.endsWith('43') && attempt === 0;
-    const chunks = buildAssistantChunks(order);
-
-    if (shouldFail) {
-      return concat(
-        of(createInsight(order.id, 'loading', [], attempt)).pipe(delay(200)),
-        of(createInsight(order.id, 'streaming', chunks.slice(0, 1), attempt)).pipe(delay(650)),
-        throwError(() => new Error('AI service timed out while checking delivery risk'))
-      );
-    }
-
     return concat(
       of(createInsight(order.id, 'loading', [], attempt)).pipe(delay(150)),
-      interval(420).pipe(
-        take(chunks.length),
-        map((index) => createInsight(order.id, index === chunks.length - 1 ? 'ready' : 'streaming', chunks.slice(0, index + 1), attempt))
+      this.http.post<AssistantInsight>(`${this.baseUrl}/assistant/${order.id}?attempt=${attempt}`, {}).pipe(
+        delay(500),
+        catchError((error) => attempt === 0 && order.id.endsWith('43')
+          ? throwError(() => new Error('AI service timed out while checking delivery risk'))
+          : of(createInsight(order.id, 'ready', buildAssistantChunks(order), attempt))
+        )
       )
     );
   }
@@ -68,32 +63,41 @@ export class FakePosApiService {
     void this.advanceOrder(orderId).subscribe();
   }
 
-  private createKitchenSnapshot(index: number): KitchenSnapshot {
-    const presets: Array<Omit<KitchenSnapshot, 'updatedAt'>> = [
-      { load: 'calm', activeTickets: 9, averagePrepMinutes: 11, delayedOrderIds: [] },
-      { load: 'busy', activeTickets: 22, averagePrepMinutes: 18, delayedOrderIds: ['ORD-1043'] },
-      { load: 'overloaded', activeTickets: 37, averagePrepMinutes: 28, delayedOrderIds: ['ORD-1043', 'ORD-1045'] }
-    ];
-    return { ...presets[index % presets.length], updatedAt: new Date().toISOString() };
+  private advanceOrderLocally(orderId: string): Observable<Order> {
+    const order = this.ordersSubject.value.find((candidate) => candidate.id === orderId);
+    if (!order) {
+      return throwError(() => new Error('Order was not found'));
+    }
+    const updated = { ...order, status: nextStatus(order.status), etaMinutes: Math.max(order.etaMinutes - 4, 0) };
+    this.ordersSubject.next(this.ordersSubject.value.map((candidate) => candidate.id === orderId ? updated : candidate));
+    return of(updated).pipe(delay(300));
+  }
+
+  private markPriorityLocally(orderId: string, priority: Order['priority']): Observable<Order> {
+    const order = this.ordersSubject.value.find((candidate) => candidate.id === orderId);
+    if (!order) {
+      return throwError(() => new Error('Order was not found'));
+    }
+    const updated = { ...order, priority };
+    this.ordersSubject.next(this.ordersSubject.value.map((candidate) => candidate.id === orderId ? updated : candidate));
+    return of(updated).pipe(delay(220));
+  }
+
+  private createKitchenSnapshot(): KitchenSnapshot {
+    return { load: 'busy', activeTickets: 22, averagePrepMinutes: 18, delayedOrderIds: ['ORD-1043'], updatedAt: new Date().toISOString() };
   }
 }
 
 function buildAssistantChunks(order: Order): string[] {
-  const suggestions = [
+  return [
     order.allergyNotes ? `Allergy warning: respect "${order.allergyNotes}".` : 'No allergy note detected.',
     order.missingInfo ? `Missing delivery info: ${order.missingInfo}.` : 'Customer information is complete.',
     order.priority === 'delayed' ? 'Escalate: delayed order needs manager attention.' : 'Priority looks healthy.',
     order.total < 220 ? 'Upsell suggestion: add loaded fries or a dessert combo.' : 'Basket value is strong; focus on speed.'
   ];
-  return suggestions;
 }
 
 function createInsight(orderId: string, state: AssistantInsight['state'], chunks: string[], retryCount: number): AssistantInsight {
-  return {
-    orderId,
-    state,
-    chunks,
-    content: chunks.join(' '),
-    retryCount
-  };
+  return { orderId, state, chunks, content: chunks.join(' '), retryCount };
 }
+
