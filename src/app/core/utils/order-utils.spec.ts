@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialOrders } from './mock-data';
+import { initialOrders } from './seed-data';
 import { applyKitchenPressure, nextStatus } from './order-utils';
 
 describe('order utilities', () => {

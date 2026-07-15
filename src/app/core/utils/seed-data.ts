@@ -1,4 +1,4 @@
-import { Order, Product } from './models';
+import { Order, Product } from '../models/models';
 
 export const initialOrders: Order[] = [
   {

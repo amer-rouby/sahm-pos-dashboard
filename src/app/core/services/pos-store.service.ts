@@ -1,14 +1,14 @@
 ﻿import { Injectable, computed, inject, signal } from '@angular/core';
-import { Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, map, merge, of, startWith, switchMap, takeUntil, tap } from 'rxjs';
-import { AssistantInsight, ConnectionState, KitchenSnapshot, Order, Product, ProductCategory, QueuedAction } from './models';
-import { applyKitchenPressure } from './order-utils';
-import { FakePosApiService } from './fake-pos-api.service';
-import { searchProducts } from '../features/search/search-engine';
-import { OfflineActionQueue } from '../features/offline/offline-action-queue';
+import { Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, merge, of, startWith, takeUntil, tap } from 'rxjs';
+import { AssistantInsight, ConnectionState, KitchenSnapshot, Order, Product, ProductCategory, QueuedAction } from '../models/models';
+import { applyKitchenPressure } from '../utils/order-utils';
+import { PosApiService } from './pos-api.service';
+import { searchProducts } from '../../features/search/search-engine';
+import { OfflineActionQueue } from '../../features/offline/offline-action-queue';
 
 @Injectable({ providedIn: 'root' })
 export class PosStoreService {
-  private readonly api = inject(FakePosApiService);
+  private readonly api = inject(PosApiService);
   private readonly destroy$ = new Subject<void>();
   private readonly searchQuery$ = new Subject<string>();
   private readonly retryAttempts = new Map<string, number>();
@@ -43,13 +43,6 @@ export class PosStoreService {
     this.api.products$
       .pipe(takeUntil(this.destroy$))
       .subscribe((items) => this.productCatalog.set(items));
-
-    this.api.liveOrderPatch$
-      .pipe(
-        tap((patch) => this.api.simulateLivePatch(patch.orderId)),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
 
     this.searchQuery$
       .pipe(

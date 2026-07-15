@@ -1,6 +1,6 @@
 ﻿import { Injectable, signal } from '@angular/core';
-import { Order, ProductCategory } from './models';
-import { statusLabel } from './order-utils';
+import { Order, ProductCategory } from '../models/models';
+import { statusLabel } from '../utils/order-utils';
 
 export type Language = 'ar' | 'en';
 export type Theme = 'light' | 'dark';

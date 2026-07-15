@@ -1,16 +1,17 @@
 ﻿import { describe, expect, it } from 'vitest';
 import { catchError, lastValueFrom, of, throwError, toArray } from 'rxjs';
-import { FakePosApiService } from './fake-pos-api.service';
-import { initialOrders } from './mock-data';
+import { PosApiService } from './pos-api.service';
+import { initialOrders } from '../utils/seed-data';
 
 const failingHttp = {
   get: () => throwError(() => new Error('backend unavailable')),
   post: () => throwError(() => new Error('backend unavailable'))
 };
 
-describe('FakePosApiService', () => {
-  it('updates order status through the mock API fallback', async () => {
-    const api = new FakePosApiService(failingHttp as never);
+describe('PosApiService', () => {
+  it('advances order locally when backend is unavailable', async () => {
+    const api = new PosApiService(failingHttp as never);
+    api['ordersSubject'].next(initialOrders);
 
     const updated = await lastValueFrom(api.advanceOrder('ORD-1042'));
 
@@ -18,7 +19,7 @@ describe('FakePosApiService', () => {
   });
 
   it('surfaces AI failures so the UI can offer retry', async () => {
-    const api = new FakePosApiService(failingHttp as never);
+    const api = new PosApiService(failingHttp as never);
     const states = await lastValueFrom(
       api.streamAssistant(initialOrders[1], 0).pipe(
         toArray(),

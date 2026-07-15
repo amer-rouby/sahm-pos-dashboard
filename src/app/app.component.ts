@@ -7,8 +7,8 @@ import { MetricsSummaryComponent } from './features/metrics/metrics-summary.comp
 import { OfflineQueueBannerComponent } from './features/offline/offline-queue-banner.component';
 import { OrdersWorkspaceComponent } from './features/orders/orders-workspace.component';
 import { ProductSearchPanelComponent } from './features/search/product-search-panel.component';
-import { PosStoreService } from './core/pos-store.service';
-import { UiPreferencesService } from './core/ui-preferences.service';
+import { PosStoreService } from './core/services/pos-store.service';
+import { UiPreferencesService } from './core/services/ui-preferences.service';
 
 @Component({
   selector: 'app-root',
