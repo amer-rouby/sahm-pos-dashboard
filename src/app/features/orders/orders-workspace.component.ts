@@ -9,53 +9,7 @@ import { UiPreferencesService } from '../../core/ui-preferences.service';
   selector: 'app-orders-workspace',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <aside class="orders-panel" aria-label="Live orders">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">{{ ui.t('liveQueue') }}</p>
-          <h2>{{ ui.t('orders') }}</h2>
-        </div>
-        <span class="live-pill">{{ ui.t('autoUpdates') }}</span>
-      </div>
-
-      @for (order of store.orders(); track order.id) {
-        <article class="order-card" [class.delayed]="order.priority === 'delayed'">
-          <div class="order-header">
-            <div>
-              <strong>{{ order.id }}</strong>
-              <span>{{ order.customerName }} · {{ ui.channelLabel(order.channel) }}</span>
-            </div>
-            <span class="priority" [class.rush]="order.priority === 'rush'" [class.delayed-priority]="order.priority === 'delayed'">
-              {{ ui.priorityLabel(order.priority) }}
-            </span>
-          </div>
-
-          <ol class="status-rail" aria-label="Order status">
-            @for (status of statusFlow; track status) {
-              <li [class.done]="statusFlow.indexOf(status) <= statusFlow.indexOf(order.status)">
-                {{ ui.statusLabel(status) }}
-              </li>
-            }
-          </ol>
-
-          <div class="items">
-            @for (item of order.items; track item.productId) {
-              <span>{{ item.quantity }}x {{ ui.productName(item.name) }}</span>
-            }
-          </div>
-
-          <div class="order-footer">
-            <span>{{ ui.t('eta') }} {{ order.etaMinutes }} {{ ui.t('minutes') }} · {{ order.total | number:'1.0-0' }} {{ ui.t('currency') }}</span>
-            <div>
-              <button type="button" (click)="store.loadAssistant(order)">{{ ui.t('ai') }}</button>
-              <button type="button" (click)="store.advanceOrder(order.id)" [disabled]="order.status === 'completed'">{{ ui.t('advance') }}</button>
-            </div>
-          </div>
-        </article>
-      }
-    </aside>
-  `,
+  templateUrl: './orders-workspace.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrdersWorkspaceComponent {
