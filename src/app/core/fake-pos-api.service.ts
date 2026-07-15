@@ -1,7 +1,7 @@
 ﻿import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, catchError, concat, delay, interval, map, of, shareReplay, switchMap, take, tap, throwError, timer } from 'rxjs';
-import { initialOrders, products } from './mock-data';
+import { BehaviorSubject, Observable, catchError, concat, delay, of, shareReplay, switchMap, tap, throwError, timer } from 'rxjs';
+import { products } from './mock-data';
 import { AssistantInsight, KitchenSnapshot, Order, Product } from './models';
 import { nextStatus } from './order-utils';
 
@@ -10,7 +10,7 @@ export class FakePosApiService {
   private readonly baseUrl = 'http://127.0.0.1:8080/api';
 
   constructor(private readonly http: HttpClient) {}
-  private readonly ordersSubject = new BehaviorSubject<Order[]>(initialOrders);
+  private readonly ordersSubject = new BehaviorSubject<Order[]>([]);
 
   readonly orders$ = timer(0, 5000).pipe(
     switchMap(() => this.http.get<Order[]>(`${this.baseUrl}/orders`).pipe(catchError(() => of(this.ordersSubject.value)))),
@@ -24,12 +24,8 @@ export class FakePosApiService {
   );
 
   readonly kitchen$ = timer(0, 4500).pipe(
-    switchMap(() => this.http.get<KitchenSnapshot>(`${this.baseUrl}/kitchen`).pipe(catchError(() => of(this.createKitchenSnapshot())))),
+    switchMap(() => this.http.get<KitchenSnapshot>(`${this.baseUrl}/kitchen`).pipe(catchError(() => of(null)))),
     shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  readonly liveOrderPatch$ = timer(2500, 5200).pipe(
-    map((tick) => ({ orderId: this.ordersSubject.value[tick % this.ordersSubject.value.length]?.id ?? 'ORD-1042' }))
   );
 
   advanceOrder(orderId: string): Observable<Order> {
@@ -59,10 +55,6 @@ export class FakePosApiService {
     );
   }
 
-  simulateLivePatch(orderId: string): void {
-    void this.advanceOrder(orderId).subscribe();
-  }
-
   private advanceOrderLocally(orderId: string): Observable<Order> {
     const order = this.ordersSubject.value.find((candidate) => candidate.id === orderId);
     if (!order) {
@@ -83,9 +75,6 @@ export class FakePosApiService {
     return of(updated).pipe(delay(220));
   }
 
-  private createKitchenSnapshot(): KitchenSnapshot {
-    return { load: 'busy', activeTickets: 22, averagePrepMinutes: 18, delayedOrderIds: ['ORD-1043'], updatedAt: new Date().toISOString() };
-  }
 }
 
 function buildAssistantChunks(order: Order): string[] {

@@ -1,5 +1,5 @@
 ﻿import { Injectable, computed, inject, signal } from '@angular/core';
-import { Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, map, merge, of, startWith, switchMap, takeUntil, tap } from 'rxjs';
+import { Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, merge, of, startWith, takeUntil, tap } from 'rxjs';
 import { AssistantInsight, ConnectionState, KitchenSnapshot, Order, Product, ProductCategory, QueuedAction } from './models';
 import { applyKitchenPressure } from './order-utils';
 import { FakePosApiService } from './fake-pos-api.service';
@@ -43,13 +43,6 @@ export class PosStoreService {
     this.api.products$
       .pipe(takeUntil(this.destroy$))
       .subscribe((items) => this.productCatalog.set(items));
-
-    this.api.liveOrderPatch$
-      .pipe(
-        tap((patch) => this.api.simulateLivePatch(patch.orderId)),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
 
     this.searchQuery$
       .pipe(

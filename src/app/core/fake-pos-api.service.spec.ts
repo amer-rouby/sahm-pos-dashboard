@@ -9,8 +9,9 @@ const failingHttp = {
 };
 
 describe('FakePosApiService', () => {
-  it('updates order status through the mock API fallback', async () => {
+  it('advances order locally when backend is unavailable', async () => {
     const api = new FakePosApiService(failingHttp as never);
+    api['ordersSubject'].next(initialOrders);
 
     const updated = await lastValueFrom(api.advanceOrder('ORD-1042'));
 
