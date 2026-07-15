@@ -1,0 +1,22 @@
+<section class="assistant-grid" aria-label="AI order assistant">
+    @for (order of store.orders().slice(0, 3); track order.id) {
+    <article class="assistant-card">
+        <div class="assistant-title">
+            <strong>{{ order.id }}</strong>
+            <span>{{ ui.assistantStateLabel(assistantState(order.id)) }}</span>
+        </div>
+        <div class="assistant-body" [class.loading]="assistantState(order.id) === 'loading'">
+            @if (store.assistant()[order.id]; as insight) {
+            @if (insight.state !== 'error') {
+            <p>{{ ui.assistantText(insight.content) || ui.t('thinking') }}</p>
+            } @else {
+            <p class="error">{{ ui.assistantText(insight.error ?? '') }}</p>
+            <button type="button" (click)="store.retryAssistant(order.id)">{{ ui.t('retry') }}</button>
+            }
+            } @else {
+            <p>{{ ui.t('noRecommendation') }}</p>
+            }
+        </div>
+    </article>
+    }
+</section>

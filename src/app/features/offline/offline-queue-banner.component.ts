@@ -7,14 +7,7 @@ import { UiPreferencesService } from '../../core/ui-preferences.service';
   selector: 'app-offline-queue-banner',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    @if (store.pendingActions().length) {
-      <section class="offline-queue">
-        <strong>{{ store.pendingActions().length }} {{ ui.t('queuedTitle') }}</strong>
-        <span>{{ ui.t('queuedText') }}</span>
-      </section>
-    }
-  `,
+  templateUrl: './offline-queue-banner.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OfflineQueueBannerComponent {
