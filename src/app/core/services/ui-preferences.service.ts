@@ -88,19 +88,27 @@ const translations = {
 
 @Injectable({ providedIn: 'root' })
 export class UiPreferencesService {
-  readonly language = signal<Language>('ar');
-  readonly theme = signal<Theme>('light');
+  readonly language = signal<Language>(this.loadFromStorage('language', 'ar'));
+  readonly theme = signal<Theme>(this.loadFromStorage('theme', 'light'));
 
   t(key: TranslationKey): string {
     return translations[this.language()][key];
   }
 
   toggleLanguage(): void {
-    this.language.update((current) => current === 'ar' ? 'en' : 'ar');
+    this.language.update((current) => {
+      const newLang = current === 'ar' ? 'en' : 'ar';
+      this.saveToStorage('language', newLang);
+      return newLang;
+    });
   }
 
   toggleTheme(): void {
-    this.theme.update((current) => current === 'light' ? 'dark' : 'light');
+    this.theme.update((current) => {
+      const newTheme = current === 'light' ? 'dark' : 'light';
+      this.saveToStorage('theme', newTheme);
+      return newTheme;
+    });
   }
 
   themeLabel(): string {
@@ -184,6 +192,26 @@ export class UiPreferencesService {
       return name;
     }
     return productNamesAr[name] ?? name;
+  }
+
+  private loadFromStorage<T>(key: string, defaultValue: T): T {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored) as T;
+      }
+    } catch (error) {
+      console.error(`Failed to load ${key} from localStorage:`, error);
+    }
+    return defaultValue;
+  }
+
+  private saveToStorage<T>(key: string, value: T): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Failed to save ${key} to localStorage:`, error);
+    }
   }
 
   assistantText(value: string): string {
