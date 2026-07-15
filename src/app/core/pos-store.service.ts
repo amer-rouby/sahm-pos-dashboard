@@ -1,7 +1,6 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
-import { Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, map, merge, of, startWith, switchMap, takeUntil, tap } from 'rxjs';
-import { products } from './mock-data';
-import { AssistantInsight, ConnectionState, KitchenSnapshot, Order, ProductCategory, QueuedAction } from './models';
+﻿import { Injectable, computed, inject, signal } from '@angular/core';
+import { Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, merge, of, startWith, takeUntil, tap } from 'rxjs';
+import { AssistantInsight, ConnectionState, KitchenSnapshot, Order, Product, ProductCategory, QueuedAction } from './models';
 import { applyKitchenPressure } from './order-utils';
 import { FakePosApiService } from './fake-pos-api.service';
 import { searchProducts } from '../features/search/search-engine';
@@ -24,9 +23,10 @@ export class PosStoreService {
   readonly recentSearches = signal<string[]>([]);
   readonly activeSearchIndex = signal(0);
   readonly rawQuery = signal('');
+  readonly productCatalog = signal<Product[]>([]);
 
   readonly delayedOrders = computed(() => this.orders().filter((order) => order.priority === 'delayed').length);
-  readonly visibleProducts = computed(() => searchProducts(products, this.rawQuery(), this.selectedCategory()));
+  readonly visibleProducts = computed(() => searchProducts(this.productCatalog(), this.rawQuery(), this.selectedCategory()));
   readonly activeProduct = computed(() => this.visibleProducts()[this.activeSearchIndex()]?.product ?? null);
 
   constructor() {
@@ -40,12 +40,9 @@ export class PosStoreService {
         this.orders.set(kitchen ? orders.map((order) => applyKitchenPressure(order, kitchen)) : orders);
       });
 
-    this.api.liveOrderPatch$
-      .pipe(
-        tap((patch) => this.api.simulateLivePatch(patch.orderId)),
-        takeUntil(this.destroy$)
-      )
-      .subscribe();
+    this.api.products$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((items) => this.productCatalog.set(items));
 
     this.searchQuery$
       .pipe(
@@ -142,3 +139,4 @@ export class PosStoreService {
     return this.api.markPriority(action.orderId, 'rush');
   }
 }
+
