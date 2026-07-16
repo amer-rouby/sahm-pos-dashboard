@@ -1,6 +1,7 @@
-﻿import { Injectable, signal } from '@angular/core';
-import { Order, ProductCategory } from '../models/models';
+﻿import { Injectable, signal, inject } from '@angular/core';
+import { Order, Product, ProductCategory } from '../models/models';
 import { statusLabel } from '../utils/order-utils';
+import { PosApiService } from './pos-api.service';
 
 export type Language = 'ar' | 'en';
 export type Theme = 'light' | 'dark';
@@ -88,6 +89,16 @@ const translations = {
 
 @Injectable({ providedIn: 'root' })
 export class UiPreferencesService {
+  private readonly api = inject(PosApiService);
+  private productNamesAr = new Map<string, string>();
+
+  constructor() {
+    // Build Arabic names map from backend products
+    this.api.products$.subscribe((products: Product[]) => {
+      this.productNamesAr = new Map(products.map((p) => [p.name, p.nameAr]));
+    });
+  }
+
   readonly language = signal<Language>(this.loadFromStorage('language', 'ar'));
   readonly theme = signal<Theme>(this.loadFromStorage('theme', 'light'));
 
@@ -191,7 +202,7 @@ export class UiPreferencesService {
     if (this.language() === 'en') {
       return name;
     }
-    return productNamesAr[name] ?? name;
+    return this.productNamesAr.get(name) ?? name;
   }
 
   private loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -230,16 +241,3 @@ export class UiPreferencesService {
       .replace(/AI service timed out while checking delivery risk/g, 'انتهت مهلة المساعد أثناء فحص مخاطر التوصيل');
   }
 }
-
-const productNamesAr: Record<string, string> = {
-  'Classic Beef Burger': 'برجر لحم كلاسيك',
-  'Smoked Mushroom Burger': 'برجر مشروم مدخن',
-  'Chicken Ranch Wrap': 'راب دجاج رانش',
-  'Breakfast Egg Muffin': 'مافن بيض للإفطار',
-  'Falafel Slider Box': 'بوكس سلايدر فلافل',
-  'Loaded Fries': 'بطاطس محملة',
-  'Crispy Onion Rings': 'حلقات بصل مقرمشة',
-  'Iced Lemon Mint': 'ليمون نعناع مثلج',
-  'Chocolate Pudding': 'بودينج شوكولاتة',
-  'Caramel Date Sundae': 'صنداي تمر بالكراميل'
-};

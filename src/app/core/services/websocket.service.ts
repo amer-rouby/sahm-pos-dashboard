@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Order, KitchenSnapshot } from '../models/models';
+import { Order, KitchenSnapshot, Product } from '../models/models';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 
 export type WebSocketMessage = {
@@ -7,6 +7,7 @@ export type WebSocketMessage = {
   data?: Order[] | KitchenSnapshot;
   orders?: Order[];
   kitchen?: KitchenSnapshot;
+  products?: Product[];
 };
 
 @Injectable({ providedIn: 'root' })
@@ -20,6 +21,7 @@ export class WebSocketService {
   readonly connected = signal(false);
   readonly orders = signal<Order[]>([]);
   readonly kitchen = signal<KitchenSnapshot | null>(null);
+  readonly products = signal<Product[]>([]);
 
   connect(): void {
     if (this.socket) {
@@ -65,6 +67,9 @@ export class WebSocketService {
         }
         if (message.kitchen) {
           this.kitchen.set(message.kitchen as KitchenSnapshot);
+        }
+        if (message.products) {
+          this.products.set(message.products as Product[]);
         }
         break;
       case 'orders':

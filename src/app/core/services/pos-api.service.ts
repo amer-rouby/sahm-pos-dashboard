@@ -2,7 +2,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, catchError, concat, delay, map, of, shareReplay, switchMap, tap, throwError, timer } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { initialOrders, products } from '../utils/seed-data';
 import { AssistantInsight, KitchenSnapshot, Order, Product } from '../models/models';
 import { WebSocketService } from './websocket.service';
 import { nextStatus } from '../utils/order-utils';
@@ -36,19 +35,18 @@ export class PosApiService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
     
-    // Load products once and cache - prevents multiple HTTP calls
-    this.http.get<Product[]>(`${this.baseUrl}/products`).pipe(
-      tap((data) => this.productsSubject.next(data)),
-      catchError(() => {
-        this.productsSubject.next(products);
-        return of(products);
-      })
-    ).subscribe();
-    
-    this.products$ = this.productsSubject.asObservable();
+    // Products come from WebSocket initial message
+    this.products$ = toObservable(this.ws.products).pipe(
+      tap((data: Product[]) => {
+        if (data.length > 0) {
+          this.productsSubject.next(data);
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
   readonly liveOrderPatch$ = timer(2500, 5200).pipe(
-    map((tick) => ({ orderId: initialOrders[tick % initialOrders.length].id }))
+    map((tick) => ({ orderId: `ORD-${1042 + (tick % 12)}` }))
   );
 
   advanceOrder(orderId: string): Observable<Order> {
