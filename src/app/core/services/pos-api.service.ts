@@ -1,43 +1,62 @@
 ﻿import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, catchError, concat, delay, of, shareReplay, switchMap, tap, throwError, timer } from 'rxjs';
-import { products } from './mock-data';
-import { AssistantInsight, KitchenSnapshot, Order, Product } from './models';
-import { nextStatus } from './order-utils';
+import { BehaviorSubject, Observable, catchError, concat, delay, map, of, shareReplay, switchMap, tap, throwError, timer } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { AssistantInsight, KitchenSnapshot, Order, Product } from '../models/models';
+import { WebSocketService } from './websocket.service';
+import { nextStatus } from '../utils/order-utils';
 
 @Injectable({ providedIn: 'root' })
-export class FakePosApiService {
+export class PosApiService {
   private readonly baseUrl = 'http://127.0.0.1:8080/api';
-
-  constructor(private readonly http: HttpClient) {}
   private readonly ordersSubject = new BehaviorSubject<Order[]>([]);
+  private readonly productsSubject = new BehaviorSubject<Product[]>([]);
+  orders$: Observable<Order[]>;
+  kitchen$: Observable<KitchenSnapshot | null>;
+  connected$: Observable<boolean>;
+  products$: Observable<Product[]>;
 
-  readonly orders$ = timer(0, 5000).pipe(
-    switchMap(() => this.http.get<Order[]>(`${this.baseUrl}/orders`).pipe(catchError(() => of(this.ordersSubject.value)))),
-    tap((orders) => this.ordersSubject.next(orders)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  readonly products$ = timer(0, 15000).pipe(
-    switchMap(() => this.http.get<Product[]>(`${this.baseUrl}/products`).pipe(catchError(() => of(products)))),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  readonly kitchen$ = timer(0, 4500).pipe(
-    switchMap(() => this.http.get<KitchenSnapshot>(`${this.baseUrl}/kitchen`).pipe(catchError(() => of(null)))),
-    shareReplay({ bufferSize: 1, refCount: true })
+  constructor(
+    private readonly http: HttpClient,
+    private readonly ws: WebSocketService
+  ) {
+    this.ws.connect();
+    
+    this.orders$ = toObservable(this.ws.orders).pipe(
+      tap((orders) => this.ordersSubject.next(orders)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+    
+    this.kitchen$ = toObservable(this.ws.kitchen).pipe(
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+    
+    this.connected$ = toObservable(this.ws.connected).pipe(
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+    
+    // Products come from WebSocket initial message
+    this.products$ = toObservable(this.ws.products).pipe(
+      tap((data: Product[]) => {
+        if (data.length > 0) {
+          this.productsSubject.next(data);
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+  readonly liveOrderPatch$ = timer(2500, 5200).pipe(
+    map((tick) => ({ orderId: `ORD-${1042 + (tick % 12)}` }))
   );
 
   advanceOrder(orderId: string): Observable<Order> {
     return this.http.post<Order>(`${this.baseUrl}/orders/${orderId}/advance`, {}).pipe(
-      tap((updated) => this.ordersSubject.next(this.ordersSubject.value.map((order) => order.id === orderId ? updated : order))),
       catchError(() => this.advanceOrderLocally(orderId))
     );
   }
 
   markPriority(orderId: string, priority: Order['priority']): Observable<Order> {
     return this.http.post<Order>(`${this.baseUrl}/orders/${orderId}/priority`, { priority }).pipe(
-      tap((updated) => this.ordersSubject.next(this.ordersSubject.value.map((order) => order.id === orderId ? updated : order))),
       catchError(() => this.markPriorityLocally(orderId, priority))
     );
   }
@@ -56,25 +75,26 @@ export class FakePosApiService {
   }
 
   private advanceOrderLocally(orderId: string): Observable<Order> {
-    const order = this.ordersSubject.value.find((candidate) => candidate.id === orderId);
+    const currentOrders = this.ordersSubject.value;
+    const order = currentOrders.find((candidate: Order) => candidate.id === orderId);
     if (!order) {
       return throwError(() => new Error('Order was not found'));
     }
     const updated = { ...order, status: nextStatus(order.status), etaMinutes: Math.max(order.etaMinutes - 4, 0) };
-    this.ordersSubject.next(this.ordersSubject.value.map((candidate) => candidate.id === orderId ? updated : candidate));
+    this.ordersSubject.next(currentOrders.map((candidate: Order) => candidate.id === orderId ? updated : candidate));
     return of(updated).pipe(delay(300));
   }
 
   private markPriorityLocally(orderId: string, priority: Order['priority']): Observable<Order> {
-    const order = this.ordersSubject.value.find((candidate) => candidate.id === orderId);
+    const currentOrders = this.ordersSubject.value;
+    const order = currentOrders.find((candidate: Order) => candidate.id === orderId);
     if (!order) {
       return throwError(() => new Error('Order was not found'));
     }
     const updated = { ...order, priority };
-    this.ordersSubject.next(this.ordersSubject.value.map((candidate) => candidate.id === orderId ? updated : candidate));
+    this.ordersSubject.next(currentOrders.map((candidate: Order) => candidate.id === orderId ? updated : candidate));
     return of(updated).pipe(delay(220));
   }
-
 }
 
 function buildAssistantChunks(order: Order): string[] {
@@ -89,4 +109,3 @@ function buildAssistantChunks(order: Order): string[] {
 function createInsight(orderId: string, state: AssistantInsight['state'], chunks: string[], retryCount: number): AssistantInsight {
   return { orderId, state, chunks, content: chunks.join(' '), retryCount };
 }
-

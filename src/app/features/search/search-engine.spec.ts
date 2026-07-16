@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { products } from '../../core/mock-data';
+import { products } from '../../core/utils/seed-data';
 import { searchProducts } from './search-engine';
 
 describe('searchProducts', () => {

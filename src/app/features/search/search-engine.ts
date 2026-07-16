@@ -1,4 +1,4 @@
-﻿import { Product, ProductCategory, SearchResult } from '../../core/models';
+﻿import { Product, ProductCategory, SearchResult } from '../../core/models/models';
 
 const arabicSearchAliases: Record<string, string[]> = {
   'Classic Beef Burger': ['برجر لحم كلاسيك', 'برجر', 'لحم', 'كلاسيك'],

@@ -47,6 +47,7 @@ export interface AssistantInsight {
 export interface Product {
   id: string;
   name: string;
+  nameAr: string;
   category: ProductCategory;
   price: number;
   tags: string[];

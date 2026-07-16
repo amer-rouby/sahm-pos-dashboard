@@ -1,14 +1,16 @@
 ﻿import { Injectable, computed, inject, signal } from '@angular/core';
 import { Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, merge, of, startWith, takeUntil, tap } from 'rxjs';
-import { AssistantInsight, ConnectionState, KitchenSnapshot, Order, Product, ProductCategory, QueuedAction } from './models';
-import { applyKitchenPressure } from './order-utils';
-import { FakePosApiService } from './fake-pos-api.service';
-import { searchProducts } from '../features/search/search-engine';
-import { OfflineActionQueue } from '../features/offline/offline-action-queue';
+import { AssistantInsight, ConnectionState, KitchenSnapshot, Order, Product, ProductCategory, QueuedAction } from '../models/models';
+import { applyKitchenPressure } from '../utils/order-utils';
+import { PosApiService } from './pos-api.service';
+import { WebSocketService } from './websocket.service';
+import { searchProducts } from '../../features/search/search-engine';
+import { OfflineActionQueue } from '../../features/offline/offline-action-queue';
 
 @Injectable({ providedIn: 'root' })
 export class PosStoreService {
-  private readonly api = inject(FakePosApiService);
+  private readonly api = inject(PosApiService);
+  private readonly ws = inject(WebSocketService);
   private readonly destroy$ = new Subject<void>();
   private readonly searchQuery$ = new Subject<string>();
   private readonly retryAttempts = new Map<string, number>();
@@ -110,7 +112,12 @@ export class PosStoreService {
     const wasOffline = this.connection() === 'offline';
     this.connection.set(state);
 
-    if (wasOffline && state === 'online') {
+    if (state === 'offline') {
+      // Disconnect WebSocket when going offline
+      this.ws.disconnect();
+    } else if (wasOffline && state === 'online') {
+      // Reconnect WebSocket when coming back online
+      this.ws.connect();
       this.flushQueue();
     }
   }
@@ -120,7 +127,7 @@ export class PosStoreService {
       this.pendingActions.set(this.offlineQueue.enqueue(action));
       return;
     }
-    this.runAction(action);
+    this.runAction(action).subscribe();
   }
 
   private flushQueue(): void {
