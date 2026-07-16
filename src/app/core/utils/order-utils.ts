@@ -1,4 +1,4 @@
-import { KitchenSnapshot, Order, OrderStatus, Priority } from './models';
+import { KitchenSnapshot, Order, OrderStatus, Priority } from '../models/models';
 
 export const orderStatusFlow: OrderStatus[] = ['received', 'preparing', 'ready', 'delivered', 'completed'];
 

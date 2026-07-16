@@ -1,4 +1,4 @@
-import { QueuedAction } from '../../core/models';
+import { QueuedAction } from '../../core/models/models';
 
 export class OfflineActionQueue {
   private readonly actions: QueuedAction[] = [];
